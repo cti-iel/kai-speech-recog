@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAI ChatBot</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #f2f2f2; 
+        }
+        .chat-container { 
+            position: fixed; 
+            top: 1vh; 
+            left: 10vw;
+            width: 80vw; 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            background-color: #fff; 
+            border: 1px solid #ccc; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+		
+		.mic-icon-container {
+			background-color: #f8f8f8; 
+			display: flex;
+			justify-content: center; /* Center horizontally */
+			align-items: center; /* Center vertically */
+			flex-grow: 0;
+		}
+		
+        .chat-log { 
+            overflow-y: auto; 
+            padding: 15px; 
+            flex-grow: 1; 
+        }
+        .chat-message { 
+            display: flex; 
+            align-items: center; 
+            margin-bottom: 15px; 
+            font-size: 18px; 
+        }
+        .message-content { 
+            padding: 10px 20px; 
+            border-radius: 20px; 
+            max-width: 70%; 
+            font-family: sans-serif; 
+        }
+        .bot-message { 
+            justify-content: flex-start; 
+        }
+		.bot-message .message-content { 
+		background-color: #b3d9ff; 
+		color: #333; 
+		margin-right: 10px; 
+		border-radius: 20px;
+		}
+        .user-message { 
+            justify-content: flex-end; 
+        }
+        .user-message .message-content { 
+            background-color: #ccffcc; 
+            color: #333; 
+            margin-left: 10px; 
+            border-radius: 20px;
+        }
+        .fa-kai, .fa-user {
+            font-size: 30px; 
+            padding: 10px; 
+            border-radius: 50%; 
+            color: #fff;
+        }
+        .fa-kai {
+			background-image: url('/KAIIcon.png'); /* Path to your custom icon */
+			background-size: cover; /* Resize the image to fit the element */
+			background-repeat: no-repeat;
+			background-position: center;
+			margin-right: 10px;
+			width: 30px; /* Adjust size as needed */
+			height: 30px; /* Adjust size as needed */
+        }
+        .fa-user {
+            background-color: #b4f0b4; 
+            margin-left: 10px;
+        }
+        .chat-input { 
+            padding: 15px; 
+            background-color: #fff; 
+            border-top: 1px solid #ddd; 
+            display: flex;
+        }
+        input[type="text"] { 
+            flex-grow: 1; 
+            padding: 10px; 
+            margin-right: 10px; 
+            border: 1px solid #ccc; 
+        }
+        .send-btn { 
+            background-color: #007bff; 
+            color: white; 
+            border: none; 
+            padding: 10px 15px; 
+            cursor: pointer; 
+            font-size: 16px; 
+        }
+        .send-btn i { 
+            margin-right: 5px; 
+        }
+		@keyframes blink {
+			0% { opacity: .2; }
+			20% { opacity: 1; }
+			100% { opacity: .2; }
+		}
+		.typing-indicator {
+			font-size: 18px;
+			display: inline-block;
+			margin-left: 4px;
+			animation: blink 1.4s infinite;
+		}
+
+		.mic-icon {
+			position: relative;
+			width: 250px; /* Diameter of the circle */
+			height: 50px; /* Diameter of the circle */
+			background-color: #0048E6; /* Light blue background */
+			border-radius: 40%; /* Makes the button a circle */
+			border: none;
+			cursor: pointer;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			margin-right: 10px;
+		}
+		
+		.mic-icon::before {
+			content: "";
+			position: absolute;
+			top: 15px;
+			width: 15px; /* Width of the microphone part */
+			height: 20px; /* Height of the microphone part */
+			background-color: white;
+			border-radius: 50%;
+		}
+		
+		.mic-icon::after {
+			content: "";
+			position: absolute;
+			bottom: 10px;
+			width: 15px; /* Width of the base part */
+			height: 5px; /* Height of the base part */
+			background-color: white;
+			border-radius: 10px;
+		}
+		
+		
+		/* Base button styling */
+		#start-voice-recognition {
+			background-color: #4CAF50; /* Green background */
+			color: white; /* White text */
+			padding: 15px 32px; /* Padding inside the button */
+			text-align: center; /* Centered text */
+			text-decoration: none; /* No underline on the text */
+			display: inline-block; /* Display as inline-block */
+			font-size: 16px; /* Font size */
+			margin: 4px 2px; /* Margin around the button */
+			cursor: pointer; /* Cursor pointer on hover */
+			border: none; /* No border */
+			border-radius: 8px; /* Rounded corners */
+			transition: background-color 0.3s; /* Smooth background color transition */
+		}
+		
+		/* Button styling when the app is listening */
+		#start-voice-recognition.listening {
+			background-color: #f44336; /* Change to red background */
+		}
+		
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="chat-log" id="chatLog">
+        <div class="chat-message bot-message">
+            <i class="fas fa-kai"></i>
+            <div class="message-content">
+			
+			Hello! I am KAI.<br>
+			You can ask anything you want to know about this factory.<br>
+			<br>
+			Question examples -
+			<ul>
+			<li>Show me XXXX video</li>
+			<li>Can you fetch XXXX data in the Line X?</li>
+			<li>Are there any business risks?</li>
+			</ul>			
+			Any language is acceptable for me.<br>
+			<br>
+			How can I help you?
+			
+			</div>
+        </div>
+    </div>
+	
+	<div class="mic-icon-container">
+		<button class="mic-icon" id="buttonToggle"></button>
+	</div>
+	
+	
+    <div class="chat-input">
+		<!-- <button class="mic-icon" id="start-btn"></button>  in case of Web Speech API -->
+        <input type="text" id="userInput" placeholder="Type your message here..." onkeypress="handleKeyPress(event)" hidden>
+        <button class="send-btn" onclick="sendMessage()" hidden><i class="fas fa-paper-plane"></i>Send</button>
+    </div>
+	
+	<script src="encode-audio.js"></script>
+	<!-- Audio test for debug -->
+	<!--
+    <div>
+		<audio controls id="audio"></audio>
+    </div>
+	-->
+	
+	<!-- <button id="start-voice-recognition">Start Voice Recognition</button> -->
+	
+	
+	<!-- <audio controls src="http://localhost/test.mp3" type="audio/mp3"> -->
+	
+</div>
+
+<script>
+
+	// Chat box
+	const textbox = document.getElementById('userInput');
+    const wsurl = `wss://${location.hostname}:${location.port}`;
+	var ws = new WebSocket(wsurl);
+	try {
+		ws.onopen = function(e) {
+			console.log("Websocket Connection established");
+			// Display thinking animation until recieving msg
+		};
+		
+		ws.onmessage = function(event) {
+			removeTypingIndicator();
+			console.log('Message from server:', event.data);
+			const res = JSON.parse(event.data);
+			var msg = res['response'];
+			
+			// Replace the message
+			displayMessage(msg, 'bot');
+			
+			// Speech the Voice
+			const speechData = res['speech'];
+			
+			//console.log(speechData.data);
+			//console.log(speechData.type);	
+			
+			vblob = new Blob([Uint8Array.from(atob(speechData.data), c => c.charCodeAt(0))], { type: speechData.type });
+			
+			const audioUrl = URL.createObjectURL(vblob);
+			const audio = new Audio(audioUrl);
+			
+			console.log(audio);
+			audio.play();
+			
+			audio.addEventListener('ended', () => { 
+				console.log('Audio playback ended');
+				URL.revokeObjectURL(audioUrl);
+			});
+		};
+		
+		ws.onerror = function(error) {
+			console.log('WebSocket error:', error);
+		};
+		
+		
+	} catch (error) {
+		console.error("WebSocket Connection error:", error);
+	}
+
+
+	// Send Message
+    function sendMessage() {
+        var inputField = document.getElementById("userInput");
+        var message = inputField.value.trim();
+        if (message !== "") {
+            displayMessage(message, 'user'); // Display the user message
+            ws.send(JSON.stringify({ prompt: message })); // Send the message
+            displayTypingIndicator(); // Display the typing indicator after sending a message
+            inputField.value = ""; // Clear input field
+        }
+    }
+
+    function handleKeyPress(event) {
+        if (event.key === "Enter") {
+            sendMessage();
+            event.preventDefault(); // Prevent the default action (form submission)
+        }
+    }
+
+    function displayMessage(message, sender) {
+        var chatLog = document.getElementById("chatLog");
+        var messageElement = document.createElement("div");
+        messageElement.classList.add("chat-message", sender + "-message");
+
+        var contentElement = document.createElement("div");
+        contentElement.classList.add("message-content");
+
+        //contentElement.textContent = message;  //disable HTML
+		contentElement.innerHTML = message;
+
+        if (sender === 'user') {
+            var iconElement = document.createElement("i");
+			messageElement.appendChild(contentElement);
+            iconElement.classList.add("fas", "fa-user");
+            messageElement.appendChild(iconElement);            
+        } else {
+            var iconElement = document.createElement("i");
+            iconElement.classList.add("fas", "fa-kai");
+			messageElement.appendChild(iconElement);
+            messageElement.appendChild(contentElement);
+       }
+
+        chatLog.appendChild(messageElement);
+        chatLog.scrollTop = chatLog.scrollHeight; // Scroll to the bottom
+    }
+
+    function displayTypingIndicator() {
+        var chatLog = document.getElementById("chatLog");
+        var typingIndicator = document.createElement("div");
+        typingIndicator.classList.add("chat-message", "bot-message");
+        typingIndicator.innerHTML = '<i class="fas fa-kai"></i><div class="message-content"><span class="typing-indicator">...</span></div>';
+        typingIndicator.id = "typingIndicator"; // Assign an ID for later removal
+        chatLog.appendChild(typingIndicator);
+        chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+        var typingIndicator = document.getElementById("typingIndicator");
+        if (typingIndicator) {
+            typingIndicator.parentNode.removeChild(typingIndicator);
+        }
+    }
+	
+	// Audio recording
+	async function audioMain() {
+		try {
+			const buttonToggle = document.querySelector('#buttonToggle');
+			const audio = document.querySelector('#audio');
+			let isRecording = false; // Track recording state
+	
+			const stream = await navigator.mediaDevices.getUserMedia({
+				video: false,
+				audio: true,
+			})
+	
+			const [track] = stream.getAudioTracks();
+			const settings = track.getSettings();
+	
+			const audioContext = new AudioContext();
+			await audioContext.audioWorklet.addModule('audio-recorder.js');
+	
+			const mediaStreamSource = audioContext.createMediaStreamSource(stream);
+			const audioRecorder = new AudioWorkletNode(audioContext, 'audio-recorder');
+			const buffers = [];
+	
+	        audioRecorder.port.addEventListener('message', event => {
+	            buffers.push(event.data.buffer);
+	        });
+	        audioRecorder.port.start();
+	
+	        mediaStreamSource.connect(audioRecorder);
+	        audioRecorder.connect(audioContext.destination);
+	
+	        buttonToggle.addEventListener('click', event => {
+	            if (!isRecording) {
+					console.log('Voice recognition started. Speak into the microphone.');
+	                // Start recording
+	                buttonToggle.style.backgroundColor = '#f44336';
+	                const parameter = audioRecorder.parameters.get('isRecording');
+	                parameter.setValueAtTime(1, audioContext.currentTime);
+	                buffers.splice(0, buffers.length);
+	            } else {
+	                // Stop recording
+					console.log('Voice recognition stopped.');
+					buttonToggle.style.backgroundColor = '#0048E6'; // Change button color back to indicate inactive recognition					
+	                const parameter = audioRecorder.parameters.get('isRecording');
+	                parameter.setValueAtTime(0, audioContext.currentTime);
+	
+	                const blob = encodeAudio(buffers, settings);
+	                const url = URL.createObjectURL(blob);
+	                
+	                console.log(blob);
+	                console.log(url);
+	
+	                // Send to openAI API proxy
+	                const formData = new FormData();
+	                formData.append('file', blob, 'sample.wav');
+	                
+	                const fetchOptions = {
+	                    method: 'POST',
+	                    body: formData
+	                };
+	                
+	                fetch('/proxy', fetchOptions)
+	                    .then(response => response.json())
+	                    .then(data => {
+	                        console.log(data);
+	
+	                        const inputField = document.getElementById("userInput");
+	                        inputField.value = data.message;
+							sendMessage();
+	                        
+	                    })
+	                    .catch(error => {
+	                        console.error('/proxy POST Error:', error);
+	                    });
+	            }
+	            isRecording = !isRecording; // Toggle the recording state
+	        });
+	    } catch (err) {
+	        console.error(err);
+	    }
+	}
+	audioMain();
+	
+	
+	// Speech recognition (use Web Speech API)
+	function webSpeechAPIMain() {
+		let recognition;
+		let recognizing = false; // A flag to indicate whether recognition is active
+		const startBtn = document.getElementById('start-btn');
+		
+		if ('webkitSpeechRecognition' in window) {
+		
+			console.log("Try speaking into the microphone.");
+			
+			recognition = new webkitSpeechRecognition();
+			recognition.continuous = true;
+			recognition.interimResults = true;
+			recognition.lang = 'en-US';
+			
+			recognition.onstart = function() {
+			recognizing = true;
+			console.log('Voice recognition started. Speak into the microphone.');
+			startBtn.style.backgroundColor = '#f44336';
+			}
+			
+			recognition.onerror = function(event) {
+			console.log('Speech recognition error', event);
+			};
+			
+			recognition.onend = function() {
+			recognizing = false;
+			console.log('Voice recognition stopped.');
+			startBtn.style.backgroundColor = '#0048E6'; // Change button color back to indicate inactive recognition
+			};
+			
+			recognition.onresult = function(event) {
+			let transcript = '';
+			for (let i = event.resultIndex; i < event.results.length; ++i) {
+				transcript += event.results[i][0].transcript;
+			}
+			textbox.value = transcript;
+			};
+			
+			startBtn.addEventListener('click', function() {
+			if (recognizing) {
+				recognition.stop();
+			} else {
+				recognition.start();
+			}	
+			});
+	
+		} else {
+			alert('Your browser does not support speech recognition.');
+			startBtn.disabled = true;
+		}
+	}
+	
+	// Comment out if use Web Speech API
+	//webSpeechAPIMain()
+	
+</script>
+
+</body>
+</html>
+
