@@ -238,10 +238,11 @@
 	// Chat box
 	const textbox = document.getElementById('userInput');
     const wsurl = `wss://${location.hostname}:${location.port}`;
-	var ws = new WebSocket(wsurl);
-	
-
-	let isPlaying = false; // True if audio is playing
+	const ws = new WebSocket(wsurl);
+		
+	let audio = new Audio();
+	let isPlaying = false;   // True if audio is playing
+	let isRecording = false; // True if recording is activated
 	
 	try {
 		ws.onopen = function(e) {
@@ -267,32 +268,25 @@
 			vblob = new Blob([Uint8Array.from(atob(speechData.data), c => c.charCodeAt(0))], { type: speechData.type });
 			
 			const audioUrl = URL.createObjectURL(vblob);
-			const audio = new Audio(audioUrl);
+			audio = new Audio(audioUrl);
 			
 			console.log(audio);
 			
 			audio.addEventListener('playing', () => {
 				isPlaying = true;
 			});
-
-			audio.addEventListener('ended', () => {
-				isPlaying = false;
-			});
 			
-			function audioPlay() {
-				audio.play().then(() => {
-					isAudioPlaying = true;
-				}).catch(error => {
-					console.log('Error playing audio:', error);
-					isAudioPlaying = false;
-				});
+			function playAudio() {
+				audio.play()
+					.catch(error => 
+						console.log('Error playing audio:', error)
+					);
 			}
-			
-			audioPlay();
-			
-			
+			playAudio();
+
 			audio.addEventListener('ended', () => { 
 				console.log('Audio playback ended');
+				isPlaying = false;
 				URL.revokeObjectURL(audioUrl);
 			});
 		};
@@ -305,7 +299,6 @@
 	} catch (error) {
 		console.error("WebSocket Connection error:", error);
 	}
-
 
 	// Send Message
     function sendMessage() {
@@ -370,7 +363,6 @@
         }
     }
 	
-	
 	// Utility function to calculate volume from audio buffer
 	function calculateVolume(buffer) {
 		// Simple root mean square (RMS) to calculate volume
@@ -382,20 +374,20 @@
 	}
 	
 	// Adjust according to environment
-	const VOLUME_THRESHOLD = 10.0;  // Volume value (a.u.) to be adjusted
+	const VOLUME_THRESHOLD = 25.0;  // Volume value (a.u.) to be adjusted
 	const SILENCE_THRESHOLD_TIME = 3.0; // Sec 
 	
 	// Audio recording
 	async function audioMain() {
 		try {
-			const audio = document.querySelector('#audio');
+			const audioSelector = document.querySelector('#audio');
 			let isRecording = false; // Track recording state
 			let startRecordingTime = null; // To keep track of silence duration
 	
 			const stream = await navigator.mediaDevices.getUserMedia({
 				video: false,
 				audio: true,
-			})
+			});
 	
 			const [track] = stream.getAudioTracks();
 			const settings = track.getSettings();
@@ -407,7 +399,6 @@
 			const audioRecorder = new AudioWorkletNode(audioContext, 'audio-recorder');
 			const buffers = [];
 			
-			
 			// Set up the audio analyzer
 			const analyzer = audioContext.createAnalyser();
 			mediaStreamSource.connect(analyzer);
@@ -418,6 +409,7 @@
 			audioRecorder.port.addEventListener('message', event => {
 				buffers.push(event.data.buffer);
 			});
+			
 			audioRecorder.port.start();
 	
 	        mediaStreamSource.connect(audioRecorder);
@@ -462,7 +454,7 @@
 	                }).catch(error => {
 	                    console.error('/proxy POST Error:', error);
 	                });
-			}
+			};
 			
 			// Start voice activity detection
 			let sum;
@@ -482,10 +474,18 @@
 				// [DEBUG] 
 				//console.log(`isVoiceDetected ${isVoiceDetected} !isRecording ${isRecording} && !isPlaying ${isPlaying}`);
 				
-				if (isVoiceDetected && !isRecording && !isPlaying) {
-					startRecording();
-					startRecordingTime = audioContext.currentTime;
-					
+				if (isVoiceDetected && !isRecording) {
+				
+					if (!isPlaying){
+						startRecording();
+						startRecordingTime = audioContext.currentTime;
+					} else {
+						// Force stop the current playing
+						audio.pause();
+						startRecording();
+						startRecordingTime = audioContext.currentTime;
+					}
+				
 				} else if (!isVoiceDetected && isRecording) {
 					// Check if the silence has lasted for the threshold duration
 					
@@ -494,7 +494,7 @@
 					if (audioContext.currentTime - startRecordingTime >= SILENCE_THRESHOLD_TIME) {
 						stopRecording();
 					}
-				}				
+				}
 				requestAnimationFrame(detectVoice);
 			}
 			
