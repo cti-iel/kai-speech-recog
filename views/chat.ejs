@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KAI ChatBot</title>
+    <title>HSE ChatBot</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
         body { 
@@ -14,13 +14,13 @@
         }
         .chat-container { 
             position: fixed; 
-            top: 1vh; 
-            left: 10vw;
-            width: 80vw; 
+            top: 0vh; 
+            left: 0vw;
+            width: 100vw; 
             height: 100vh; 
             display: flex; 
             flex-direction: column; 
-            background-color: #fff; 
+            background-color: #c0c0c0; 
             border: 1px solid #ccc; 
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
@@ -125,22 +125,24 @@
 
 		.mic-icon {
 			position: relative;
-			width: 250px; /* Diameter of the circle */
-			height: 50px; /* Diameter of the circle */
-			background-color: #0048E6; /* Light blue background */
-			border-radius: 40%; /* Makes the button a circle */
+			//width: 250px; /* Diameter of the circle */
+			width: 100%;
+			height: 100px; /* Diameter of the circle */
+			//background-color: #0048E6; /* Blue */
+			background-color: #f44336; /* Red */
+			border-radius: 0%; /* Makes the button a circle */
 			border: none;
 			cursor: pointer;
 			display: flex;
 			justify-content: center;
 			align-items: center;
-			margin-right: 10px;
+			margin-right: 0px;
 		}
 		
 		.mic-icon::before {
 			content: "";
 			position: absolute;
-			top: 15px;
+			top: 35px;
 			width: 15px; /* Width of the microphone part */
 			height: 20px; /* Height of the microphone part */
 			background-color: white;
@@ -150,7 +152,7 @@
 		.mic-icon::after {
 			content: "";
 			position: absolute;
-			bottom: 10px;
+			bottom: 40px;
 			width: 15px; /* Width of the base part */
 			height: 5px; /* Height of the base part */
 			background-color: white;
@@ -189,14 +191,15 @@
             <i class="fas fa-kai"></i>
             <div class="message-content">
 			
-			Hello! I am KAI.<br>
+			Hello! I am HSE Assistant Robot.<br>
+			<br>
 			You can ask anything you want to know about this factory.<br>
 			<br>
 			Question examples -
 			<ul>
-			<li>Show me XXXX video</li>
-			<li>Can you fetch XXXX data in the Line X?</li>
-			<li>Are there any business risks?</li>
+			<li>What is the phone number of this factory?</li>
+			<li>Give me the address of this factory.</li>
+			<li>Introduce the emegency plan.</li>
 			</ul>			
 			Any language is acceptable for me.<br>
 			<br>
@@ -206,17 +209,24 @@
         </div>
     </div>
 	
-	<!--
 	<div class="mic-icon-container">
-		<button class="mic-icon" id="buttonToggle"></button>
+		<button class="mic-icon" id="mic-button"></button>
 	</div>
-	-->
 	
-	
-    <div class="chat-input" hidden>
+    <!-- <div class="chat-input" hidden> -->
+    <div class="chat-input">
 		<!-- <button class="mic-icon" id="start-btn"></button>  in case of Web Speech API -->
+		
+		
         <input type="text" id="userInput" placeholder="Type your message here..." onkeypress="handleKeyPress(event)" hidden>
         <button class="send-btn" onclick="sendMessage()" hidden><i class="fas fa-paper-plane"></i>Send</button>
+		
+		<!--
+        <input type="text" id="userInput" placeholder="Type your message here..." onkeypress="handleKeyPress(event)">
+        <button class="send-btn" onclick="sendMessage()"><i class="fas fa-paper-plane"></i>Send</button>
+		-->
+		
+		
     </div>
 	
 	<script src="encode-audio.js"></script>
@@ -243,6 +253,8 @@
 	let audio = new Audio();
 	let isPlaying = false;   // True if audio is playing
 	let isRecording = false; // True if recording is activated
+	
+	let isWaiting = false;  // True if waiting response from LLM
 	
 	try {
 		ws.onopen = function(e) {
@@ -272,6 +284,9 @@
 			
 			console.log(audio);
 			
+			// Disable Waiting flag here
+			isWaiting = false;
+			
 			audio.addEventListener('playing', () => {
 				isPlaying = true;
 			});
@@ -299,16 +314,25 @@
 	} catch (error) {
 		console.error("WebSocket Connection error:", error);
 	}
+	
+	
+	// Sleep Timer
+	function sleep(ms) {
+		return new Promise((resolve) => setTimeout(resolve, ms));
+	}
 
 	// Send Message
     function sendMessage() {
         var inputField = document.getElementById("userInput");
         var message = inputField.value.trim();
+		
+		removeUserTypingIndicator();	// Remove Typing Indicator
         if (message !== "") {
             displayMessage(message, 'user'); // Display the user message
             ws.send(JSON.stringify({ prompt: message })); // Send the message
             displayTypingIndicator(); // Display the typing indicator after sending a message
             inputField.value = ""; // Clear input field
+			isWaiting = true;
         }
     }
 
@@ -345,7 +369,26 @@
         chatLog.appendChild(messageElement);
         chatLog.scrollTop = chatLog.scrollHeight; // Scroll to the bottom
     }
-
+	
+	// User typing indicator
+    function displayUserTypingIndicator() {
+        var chatLog = document.getElementById("chatLog");
+        var typingIndicator = document.createElement("div");
+        typingIndicator.classList.add("chat-message", "user-message");
+        typingIndicator.innerHTML = '<div class="message-content"><span class="typing-indicator">Recognizing your voice...</span></div><i class="fas fa-user"></i>';
+        typingIndicator.id = "userTypingIndicator"; // Assign an ID for later removal
+        chatLog.appendChild(typingIndicator);
+        chatLog.scrollTop = chatLog.scrollHeight;
+    }
+	
+    function removeUserTypingIndicator() {
+        var typingIndicator = document.getElementById("userTypingIndicator");
+        if (typingIndicator) {
+            typingIndicator.parentNode.removeChild(typingIndicator);
+        }
+    }
+	
+	// Bot typing indicator
     function displayTypingIndicator() {
         var chatLog = document.getElementById("chatLog");
         var typingIndicator = document.createElement("div");
@@ -374,8 +417,8 @@
 	}
 	
 	// Adjust according to environment
-	const VOLUME_THRESHOLD = 25.0;  // Volume value (a.u.) to be adjusted
-	const SILENCE_THRESHOLD_TIME = 3.0; // Sec 
+	const VOLUME_THRESHOLD = 18.0;  // Volume value (a.u.) to be adjusted
+	const SILENCE_THRESHOLD_TIME = 5.0; // Sec
 	
 	// Audio recording
 	async function audioMain() {
@@ -417,10 +460,12 @@
 			
 			// Start Recording
 			function startRecording() {
-				console.log('Voice activity detected. Starting recording.');
-				isRecording = true;
+				console.log('Voice activity detected. Starting recording.');				
+				isRecording = true;				
 				audioRecorder.parameters.get('isRecording').setValueAtTime(1, audioContext.currentTime);
 				buffers.splice(0, buffers.length); // Clear old data
+				
+				displayUserTypingIndicator(); // Display typing indicator on User side				
 			}
 			
 			// Stop Recording
@@ -461,52 +506,99 @@
 			let average;
 			let isVoiceDetected;
 			
-			function detectVoice() {
-				analyzer.getByteFrequencyData(dataArray);
-				sum = dataArray.reduce((acc, val) => acc + val, 0);
-				average = sum / bufferLength;
-				
-				// [DEBUG] To adjust the volume
-				//console.log(`average rate: ${average}`)
-				
-				isVoiceDetected = average > VOLUME_THRESHOLD;
-				
-				// [DEBUG] 
-				//console.log(`isVoiceDetected ${isVoiceDetected} !isRecording ${isRecording} && !isPlaying ${isPlaying}`);
-				
-				if (isVoiceDetected && !isRecording) {
-				
-					if (!isPlaying){
-						startRecording();
-						startRecordingTime = audioContext.currentTime;
-					} else {
-						// Force stop the current playing
-						audio.pause();
-						startRecording();
-						startRecordingTime = audioContext.currentTime;
-					}
-				
-				} else if (!isVoiceDetected && isRecording) {
-					// Check if the silence has lasted for the threshold duration
-					
-					//console.log(`Silent Time: ${audioContext.currentTime - startRecordingTime }`)
-					
-					if (audioContext.currentTime - startRecordingTime >= SILENCE_THRESHOLD_TIME) {
-						stopRecording();
-					}
+			// Mic control Button (force stop)
+			const micBtn = document.getElementById('mic-button');
+			//micBtn.style.backgroundColor = '#0048E6'; // Blue
+			//micBtn.style.backgroundColor = '#f44336'; // Red
+			
+			let pauseRecord = true;
+			let manualStop = false;
+			
+			micBtn.addEventListener('click', function() {
+			
+				if (isPlaying == true) {
+					audio.pause();
+					isPlaying = false;
+				} else {
+					manualStop = !manualStop;
 				}
+				//console.log(`pauseRecord: ${pauseRecord}`);
+				//console.log(`isPlaying: ${isPlaying}`);
+				//console.log(`manualStop: ${manualStop}`);				
+			});
+			
+			function detectVoice() {
+			
+				// If audio is playing
+				if (isPlaying == true) {
+					micBtn.style.backgroundColor = '#f44336'; // Red
+					pauseRecord = true;
+					
+				} else {
+				
+					if (isWaiting == true) {
+						micBtn.style.backgroundColor = '#f44336'; // Red
+						pauseRecord = true;
+						
+					} else {
+						if (manualStop == true) {
+							micBtn.style.backgroundColor = '#f44336'; // Red
+							pauseRecord = true;
+						} else {
+							micBtn.style.backgroundColor = '#0048E6'; // Blue
+							pauseRecord = false;
+						}
+					}					
+				}
+			
+				if (pauseRecord == false) {
+			
+					analyzer.getByteFrequencyData(dataArray);
+					sum = dataArray.reduce((acc, val) => acc + val, 0);
+					average = sum / bufferLength;
+					
+					// [DEBUG] To adjust the volume
+					//console.log(`average rate: ${average}`)
+					
+					isVoiceDetected = average > VOLUME_THRESHOLD;
+					
+					// [DEBUG] 
+					//console.log(`isVoiceDetected ${isVoiceDetected} !isRecording ${isRecording} && !isPlaying ${isPlaying}`);
+					
+					if (isVoiceDetected && !isRecording) {
+						if (!isPlaying){							
+							startRecording();
+							startRecordingTime = audioContext.currentTime;
+							
+						} else {
+							// Force stop the current playing
+							//audio.pause();
+							//startRecording();
+							//startRecordingTime = audioContext.currentTime;
+						}				
+					} else if (!isVoiceDetected && isRecording) {
+						// Check if the silence has lasted for the threshold duration
+						
+						//console.log(`Silent Time: ${audioContext.currentTime - startRecordingTime}`)
+						
+						if (audioContext.currentTime - startRecordingTime >= SILENCE_THRESHOLD_TIME) {
+							stopRecording();
+						}
+					}			
+				}
+				//console.log(`pauseRecord: ${pauseRecord}`)
 				requestAnimationFrame(detectVoice);
 			}
 			
-			// Start detecting voice activity
 			detectVoice();
 			
 			} catch (err) {
 				console.error('Error in audio setup:', err);
-			}
+			}			
+			
 	}
 	audioMain();
-
+	
 	
 	// Speech recognition (use Web Speech API)
 	function webSpeechAPIMain() {

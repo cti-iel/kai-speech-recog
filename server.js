@@ -1,9 +1,9 @@
 // Set up Express
 const express = require('express');
 const app = express();
-const port = 3000;
-//const port = 443;
-const wsport = 13000
+//const port = 3000;
+const port = 443;
+//const wsport = 13000
 const fs = require('fs');
 const WebSocket = require('ws');
 const axios = require('axios');
@@ -19,7 +19,13 @@ const wavDecoder = require("wav-decoder");
 
 const hostname = '0.0.0.0'
 
-const openaiApiKey = ''
+const openaiApiKey = process.env.OPENAI_API_KEY;
+const customXApiKey = process.env.XAPI_KEY;     // GL Custom LLM API
+
+// Sleep Timer
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // HTTPS
 const server = require('https').createServer({
@@ -49,6 +55,8 @@ app.get('/send_prompt', async (req, res) => {
   var answer = '(Tentative Ans) I am KAI';
   
   //Post API here
+  // OpenAI API
+  /*
   const data = {
 	model: "gpt-3.5-turbo",
 	messages: [{"role": "user", "content": prompt}],
@@ -61,17 +69,84 @@ app.get('/send_prompt', async (req, res) => {
 		'Content-Type': 'application/json'
 	},
   };
+  */
   
-  const response = await axios.post('https://api.openai.com/v1/chat/completions', data, config);
+  // Custom API
+  const data = {
+	messages: [{"role": "user", "content": prompt}],
+	temperature: 0.7,
+  };
 
-  answer = response.data.choices[0].message.content;
+  const config = {
+  headers: {
+		'X-API-KEY': `${customXApiKey}`,
+		'Content-Type': 'application/json'
+	},
+  };
+  
+  const headers = {
+	'X-API-KEY': `${customXApiKey}`,
+	'Content-Type': 'application/json'
+  };
+  
+  let retries = 3;
+  let jobId;
+  
+  while (retries > 0) {
+	try {
+		let res0 = await axios.post('https://hgmd-p2-1-dev.hitachirail.com/api/chat', data, config);
+	
+		if (res0.status === 200) {
+			jobId = res0.data['job_id']
+			console.log(`Chat Job ID: ${jobId}`);
+			break;
+			
+		} else {
+			console.log(`Received status code ${res0.status}. Retrying...`);
+		}
+		
+	} catch (error) {
+		console.log(`Error: ${error.message}. Retrying...`);
+	}
+	retries--;
+  }
+  
+  // Request Error
+  if (retries <= 0) {
+	  console.log('Error creating a chatbot instance:');
+	  res.status(500).send(JSON.stringify({ message: 'Error creating a chatbot instance' }));
+  }
+  
+  // Wait until the API is ready (>1500 msec)
+  let tried = 0;
+  while(true) {
+	await sleep(3000);
+	  try {
+		response = await axios.get(`https://hgmd-p2-1-dev.hitachirail.com/api/chat/${jobId}`, config);
+		if (response.status === 200 && response.data !== "") {
+		  //console.log(typeof response.data);
+		  answer = response.data.choices[0].message.content;
+		  break;
+		  
+		} else {
+			tried++;
+			console.log(`Received status code ${response.status}. Retrying... ${tried}`);
+		}
+	  } catch (error) {
+		  console.log(`Error: ${error.message}`);
+		  res.status(500).send(JSON.stringify({ message: 'Error receiving a response from the chatbot' }));
+	  }
+  }
   
   console.log(`Answer: ${answer}`);
+  
+  // Remove file info
+  const optans = answer.replace(/\[.*?\]/g, '').trim();
   
   // Text to Speech
   const data2 = {
 	model: "tts-1",
-	input: answer,
+	input: optans,
 	voice: "alloy",
   };
   const config2 = {
@@ -80,10 +155,34 @@ app.get('/send_prompt', async (req, res) => {
 	},
 	responseType: 'arraybuffer', 
   };
-  const response2 = await axios.post('https://api.openai.com/v1/audio/speech', data2, config2);
   
-  const b64buf = Buffer.from(response2.data).toString('base64');
+  // Send request
+  retries = 3;
+  let b64buf;
+  while (retries > 0) {
+	try {
+	  response2 = await axios.post('https://api.openai.com/v1/audio/speech', data2, config2);
+	  if (response2.data !== "") {
+		b64buf = Buffer.from(response2.data).toString('base64');
+		break;
+	  }
+	  if (response2.status === 200) {
+		// Skip
+	  } else {
+		  console.log(`Received status code ${response2.status}. Retrying...`);
+	  }
+	} catch (error) {
+	  console.log(`Error: ${error.message}. Retrying...`);
+	}
+	retries--;
+  }
   
+  // Request Error
+  if (retries <= 0) {
+	  console.log('Error generating speech file:');
+	  res.status(500).send(JSON.stringify({ message: 'Error generating speech file' }));
+  }
+
   const speechData = {
 	  data: b64buf,
 	  type: 'audio/mpeg'
@@ -151,14 +250,25 @@ app.post('/proxy', upload.single('file'), async (req, res) => {
 			
 			try {
 				// Send to whisper
-				const response = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, config);
-			
-				// Response
-				console.log(response.data);
-			
-				// Send Responsed text
-				res.status(200).send(JSON.stringify({ message: response.data.text, volume: db }));
-				
+				let retries = 3;
+				let response;
+				while (retries > 0) {
+					
+					response = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, config);
+					
+					if (response.status === 200) {
+						// Response
+						console.log(response.data);						
+						// Send Responsed text
+						res.status(200).send(JSON.stringify({ message: response.data.text, volume: db }));
+						break;
+						
+					} else {
+						console.log(`Received status code ${response.status}. Retrying...`);
+					}
+					retries--;
+				}
+			// Request Error
 			} catch (error) {
 				console.error('Error sending file to OpenAI:', error);
 				res.status(500).send(JSON.stringify({ message: 'Error sending file to OpenAI' }));
@@ -169,8 +279,7 @@ app.post('/proxy', upload.single('file'), async (req, res) => {
 			// Send back with no text
 			res.status(200).send(JSON.stringify({ message: '', volume: db }));
 		}
-		
-		
+
 	  } catch (error) {
 		  console.error("Error processing WAV file:", error);
 	  }
