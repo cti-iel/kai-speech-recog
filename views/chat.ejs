@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HSE ChatBot</title>
+    <title>GenAI Robo</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
         body { 
@@ -180,27 +180,44 @@
 		#start-voice-recognition.listening {
 			background-color: #f44336; /* Change to red background */
 		}
-		
+
+		/* dataset selector */
+		#dataset {
+			font-size: 1.2em;
+			padding: 10px;
+			width: 100%;
+			max-width: 300px;
+		}
+
     </style>
 </head>
 <body>
 
 <div class="chat-container">
+
+	<select id="dataset" onchange="saveSelection()" hidden>
+		 <option value="confidential">Dataset: confidential</option>
+		 <option value="sustainability-1">Dataset: sustainability-1</option>
+		 <option value="qualitytest">Dataset: qualitytest</option>
+	</select>
+
     <div class="chat-log" id="chatLog">
         <div class="chat-message bot-message">
             <i class="fas fa-kai"></i>
             <div class="message-content">
 			
-			Hello! I am HSE Assistant Robot.<br>
+			Hello! I am Hitachi Rail GenAI Robot.<br>
 			<br>
-			You can ask anything you want to know about this factory.<br>
+			You can ask anything you want to know about Hitachi Rail.<br>
 			<br>
-			Question examples -
+			<!--
+			Examples -
 			<ul>
 			<li>What is the phone number of this factory?</li>
 			<li>Give me the address of this factory.</li>
 			<li>Introduce the emegency plan.</li>
-			</ul>			
+			</ul>
+			-->
 			Any language is acceptable for me.<br>
 			<br>
 			How can I help you?
@@ -215,9 +232,7 @@
 	
     <!-- <div class="chat-input" hidden> -->
     <div class="chat-input">
-		<!-- <button class="mic-icon" id="start-btn"></button>  in case of Web Speech API -->
-		
-		
+		<!-- <button class="mic-icon" id="start-btn"></button>  in case of Web Speech API -->		
         <input type="text" id="userInput" placeholder="Type your message here..." onkeypress="handleKeyPress(event)" hidden>
         <button class="send-btn" onclick="sendMessage()" hidden><i class="fas fa-paper-plane"></i>Send</button>
 		
@@ -244,6 +259,23 @@
 </div>
 
 <script>
+
+	// Save the option
+	// Add the saved option
+	window.addEventListener('DOMContentLoaded', () => {
+		const selectedDataset = localStorage.getItem('selectedDataset');
+		console.log(selectedDataset);
+		if (selectedDataset) {
+			document.getElementById('dataset').value = selectedDataset;
+		} else {
+			datasetSelect.selectedIndex = 0;
+		}
+	});
+	// Save the selected option to local storage
+	function saveSelection() {
+		const datasetSelect = document.getElementById('dataset');
+		localStorage.setItem('selectedDataset', datasetSelect.value);
+	}
 
 	// Chat box
 	const textbox = document.getElementById('userInput');
@@ -314,7 +346,7 @@
 	} catch (error) {
 		console.error("WebSocket Connection error:", error);
 	}
-	
+
 	
 	// Sleep Timer
 	function sleep(ms) {
@@ -326,10 +358,30 @@
         var inputField = document.getElementById("userInput");
         var message = inputField.value.trim();
 		
+		var inputField = document.getElementById("dataset");
+		var dataset = inputField.value.trim();
+
+
+		// Backup the selection of dataset
+		let datasetSelect = document.getElementById('dataset');
+		let selectedDataset = datasetSelect.value;
+
+		localStorage.setItem('selectedDataset', selectedDataset);
+		setTimeout(() => {
+			const previousSelection = localStorage.getItem('selectedDataset');
+			if (previousSelection) {
+				datasetSelect.value = previousSelection;
+			}
+			}, 0
+		);
+		
 		removeUserTypingIndicator();	// Remove Typing Indicator
-        if (message !== "") {
+        if (message !== "") {		
+			if (dataset === "") {
+				dataset = 'confidential';
+			}
             displayMessage(message, 'user'); // Display the user message
-            ws.send(JSON.stringify({ prompt: message })); // Send the message
+            ws.send(JSON.stringify({ prompt: message, dataset: dataset })); // Send the message
             displayTypingIndicator(); // Display the typing indicator after sending a message
             inputField.value = ""; // Clear input field
 			isWaiting = true;
@@ -352,7 +404,45 @@
         contentElement.classList.add("message-content");
 
         //contentElement.textContent = message;  //disable HTML
-		contentElement.innerHTML = message;
+		//contentElement.innerHTML = message;
+		let index = 0;
+		let isTag = false;
+		let tagContent = '';
+		
+		// Function to display message with typing animation
+        function type() {
+            if (index < message.length) {
+				const c = message.charAt(index)
+				
+				// Check if we are inside an HTML tag
+				if (c === '<') {
+					isTag = true;
+				}
+				
+				if (isTag) {
+					tagContent += c;
+					if (c === '>') {
+						isTag = false;
+						contentElement.innerHTML += tagContent;
+						tagContent = '';
+					}
+				} else {
+					contentElement.innerHTML += c;
+				}
+			}
+			index++;
+            setTimeout(type, 20); // Delay between each character
+			
+			// Scroll to Bottom
+			chatLog.scrollTop = chatLog.scrollHeight; 
+			
+        }
+		
+		if (sender === 'user') {
+			contentElement.innerHTML = message;
+		} else {
+			type();
+		}
 
         if (sender === 'user') {
             var iconElement = document.createElement("i");

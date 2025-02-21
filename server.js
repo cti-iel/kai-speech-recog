@@ -22,6 +22,8 @@ const hostname = '0.0.0.0'
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const customXApiKey = process.env.XAPI_KEY;     // GL Custom LLM API
 
+let DATASET_GLOBAL = 'confidential';
+
 // Sleep Timer
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -43,15 +45,65 @@ const axiosMod = axios.create({
 	httpsAgent: new https.Agent( {rejectUnauthorized: false })
 });
 
+// Digest Authentication
+const passport = require('passport');
+const passportHttp = require('passport-http')
+
+const record = { username: 'robot', password: 'GenAI_RobotDemo@2024' }
+passport.use(new passportHttp.DigestStrategy({ qop: 'auth'} ,
+ (username,cb) => {
+    if (username === record.username) {
+      return cb(null, username, record.password);
+    } else {
+      return cb(null,false)
+    }
+  }
+));
+
+const VALID_DATASETS = ["confidential", "sustainability-1", "qualitytest"]
+
 // Top
+/*
+app.get('/', 
+	passport.authenticate('digest', {
+		session: false
+	}), (req, res) => {
+		// Tentative implementation
+		DATASET_GLOBAL = req.query.dataset;
+		if (!(VALID_DATASETS.includes(DATASET_GLOBAL))){
+			console.log("Error - Invalid Dataset");
+			//Default
+			DATASET_GLOBAL = 'confidential';
+		}
+		res.render('chat.ejs');
+});
+*/
+
 app.get('/', (req, res) => {
-  res.render('chat.ejs');
+		apiKey = req.query.key;
+		if (apiKey !== '58c47c2d-87df-40f2-a42c-a7fa5435a8ad') {
+			res.render('401.ejs');
+		} else {
+			// Tentative implementation
+			DATASET_GLOBAL = req.query.dataset;
+			if (!(VALID_DATASETS.includes(DATASET_GLOBAL))){
+				console.log("Error - Invalid Dataset");
+				//Default
+				DATASET_GLOBAL = 'confidential';
+			}
+			res.render('chat.ejs');
+		}
 });
 
 // Send prompt to API and get response
 app.get('/send_prompt', async (req, res) => {
-	
+
   const prompt = req.query.prompt;
+  //const dataset = req.query.dataset;
+  const dataset = DATASET_GLOBAL;
+  
+  //console.log(dataset);
+  
   var answer = '(Tentative Ans) I am KAI';
   
   //Post API here
@@ -74,6 +126,7 @@ app.get('/send_prompt', async (req, res) => {
   // Custom API
   const data = {
 	messages: [{"role": "user", "content": prompt}],
+	"stream": false,
 	temperature: 0.7,
   };
 
@@ -94,7 +147,7 @@ app.get('/send_prompt', async (req, res) => {
   
   while (retries > 0) {
 	try {
-		let res0 = await axios.post('https://hgmd-p2-1-dev.hitachirail.com/api/chat', data, config);
+		let res0 = await axios.post(`https://hgmd-p2-1-dev.hitachirail.com/api/chat?dataset=${dataset}`, data, config);
 	
 		if (res0.status === 200) {
 			jobId = res0.data['job_id']
@@ -123,9 +176,17 @@ app.get('/send_prompt', async (req, res) => {
 	await sleep(3000);
 	  try {
 		response = await axios.get(`https://hgmd-p2-1-dev.hitachirail.com/api/chat/${jobId}`, config);
+
+		//console.log(`Status Code: ${response}`);
+		//console.log(`Data: ${response.data}`);
+
+
 		if (response.status === 200 && response.data !== "") {
 		  //console.log(typeof response.data);
-		  answer = response.data.choices[0].message.content;
+		  //console.log(response.data.content);
+		  
+		  //answer = response.data.choices[0].message.content;
+		  answer = response.data.content;
 		  break;
 		  
 		} else {
@@ -305,11 +366,15 @@ wss.on('connection', function connection(ws) {
 		msgJSON = JSON.parse(message)
 		
 		var prompt = msgJSON['prompt'];
+		var dataset = msgJSON['dataset'];
 		
-		console.log(prompt);
+		//console.log(`prompt: ${prompt}  dataset: ${dataset}`);
 		
 		// Execute prompt
-		const params = `prompt=${prompt}`;
+		const params = `prompt=${prompt}&dataset=${dataset}`;
+		
+		console.log(params);
+		
 		axiosMod.get(`https://127.0.0.1:${port}/send_prompt?${params}`)
 			.then((response) => {
 				//console.log('Status:', response.status);
